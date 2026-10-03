@@ -1,8 +1,8 @@
-export module chess.editor.graphics.device;
+export module tools.editor.graphics.device;
 import std;
 import vulkan;
 
-export namespace chess::editor::graphics {
+export namespace tools::editor::graphics {
     struct Instance final {
         explicit Instance(std::span<const char* const> extensions);
         vk::raii::Context context;
@@ -21,4 +21,4 @@ export namespace chess::editor::graphics {
         vk::PhysicalDeviceMemoryProperties memory;
         vk::PhysicalDeviceDescriptorHeapPropertiesEXT heap_properties;
     };
-} // namespace chess::editor::graphics
+} // namespace tools::editor::graphics

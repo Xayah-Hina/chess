@@ -1,3 +1,6 @@
 include_guard(GLOBAL)
 
 find_package(CUDAToolkit 13.3 REQUIRED GLOBAL)
+find_file(CHESS_CUBLASLT_DLL cublasLt64_13.dll PATHS "${CUDAToolkit_BIN_DIR}/x64" NO_DEFAULT_PATH REQUIRED)
+find_file(CHESS_CUDART_DLL cudart64_13.dll PATHS "${CUDAToolkit_BIN_DIR}/x64" NO_DEFAULT_PATH REQUIRED)
+file(GLOB CHESS_NVRTC_DLLS "${CUDAToolkit_BIN_DIR}/x64/nvrtc*.dll")

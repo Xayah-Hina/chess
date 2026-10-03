@@ -1,18 +1,20 @@
 module;
 #include <Windows.h>
 #include <GLFW/glfw3.h>
-export module chess.editor.platform.window;
+export module tools.editor.platform.window;
 import std;
 
-export namespace chess::editor {
+export namespace tools::editor {
     struct WindowPlatform final {
-        explicit WindowPlatform();
+        explicit WindowPlatform(const char* title, std::array<int, 2> extent, std::array<int, 2> minimum);
         ~WindowPlatform();
         WindowPlatform(const WindowPlatform&)            = delete;
         WindowPlatform& operator=(const WindowPlatform&) = delete;
 
         GLFWwindow* window{};
         HWND native_window{};
+        bool close_requested{}, redraw{true};
+        std::array<int, 2> minimum;
         std::array<float, 4> drag_region{};
 
     private:
@@ -25,4 +27,4 @@ export namespace chess::editor {
         std::unique_ptr<GLFWwindow, decltype(&glfwDestroyWindow)> owned{nullptr, glfwDestroyWindow};
         WNDPROC original_window_proc{};
     };
-} // namespace chess::editor
+} // namespace tools::editor

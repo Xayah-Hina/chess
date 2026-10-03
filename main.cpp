@@ -11,20 +11,21 @@ import std;
 #if defined(CHESS_HAS_EDITOR)
 namespace {
     void attach_console() {
+        constexpr std::array handles{STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE};
+        std::array<HANDLE, 3> inherited;
+        for (std::size_t i = 0; i < handles.size(); ++i) inherited[i] = GetStdHandle(handles[i]);
         if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
             const auto error = GetLastError();
-            if (error == ERROR_ACCESS_DENIED || error == ERROR_INVALID_HANDLE) return;
-            throw std::system_error{static_cast<int>(error), std::system_category(), "Attach parent console"};
+            if (error != ERROR_ACCESS_DENIED && error != ERROR_INVALID_HANDLE) throw std::system_error{static_cast<int>(error), std::system_category(), "Attach parent console"};
         }
         const std::array streams{stdin, stdout, stderr};
-        constexpr std::array handles{STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE};
         for (std::size_t i = 0; i < streams.size(); ++i) {
             if (_fileno(streams[i]) < 0) {
                 FILE* stream{};
                 const auto error = freopen_s(&stream, i == 0 ? "CONIN$" : "CONOUT$", i == 0 ? "r" : "w", streams[i]);
                 if (error) throw std::system_error{error, std::generic_category(), "Connect standard stream"};
             }
-            SetStdHandle(handles[i], reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(streams[i]))));
+            SetStdHandle(handles[i], inherited[i] && inherited[i] != INVALID_HANDLE_VALUE ? inherited[i] : reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(streams[i]))));
         }
     }
 } // namespace
@@ -53,7 +54,9 @@ int main(const int argc, char** argv) {
     } catch (const std::exception& error) {
 #if defined(CHESS_HAS_EDITOR)
         if (editor) {
-            MessageBoxA(nullptr, error.what(), "Chess", MB_OK | MB_ICONERROR);
+            std::wstring message(MultiByteToWideChar(CP_UTF8, 0, error.what(), -1, nullptr, 0), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, error.what(), -1, message.data(), int(message.size()));
+            MessageBoxW(nullptr, message.c_str(), L"中国象棋", MB_OK | MB_ICONERROR);
             return 1;
         }
 #endif

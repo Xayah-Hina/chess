@@ -3,14 +3,14 @@ module;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
-module chess.editor.graphics.renderer;
-import chess.editor.platform.window;
-import chess.editor.graphics.device;
-import chess.editor.graphics.resources;
+module tools.editor.graphics.renderer;
+import tools.editor.platform.window;
+import tools.editor.graphics.device;
+import tools.editor.graphics.resources;
 import std;
 import vulkan;
 
-namespace chess::editor {
+namespace tools::editor {
     Renderer::Renderer(WindowPlatform& platform) : window{platform}, instance{std::array{vk::KHRSurfaceExtensionName, vk::KHRWin32SurfaceExtensionName}}, surface{instance.instance, vk::Win32SurfaceCreateInfoKHR{{}, GetModuleHandleW(nullptr), window.native_window}}, device{instance}, resources{device} {
         pool     = vk::raii::CommandPool{device.logical, vk::CommandPoolCreateInfo{vk::CommandPoolCreateFlagBits::eResetCommandBuffer, device.family}};
         commands = vk::raii::CommandBuffers{device.logical, vk::CommandBufferAllocateInfo{*pool, vk::CommandBufferLevel::ePrimary, 2}};
@@ -36,7 +36,7 @@ namespace chess::editor {
         auto& io               = ImGui::GetIO();
         io.IniFilename         = nullptr;
         io.LogFilename         = nullptr;
-        io.BackendRendererName = "chess_shader_object";
+        io.BackendRendererName = "tools_shader_object";
         io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset | ImGuiBackendFlags_RendererHasTextures;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/SegUIVar.ttf");
@@ -244,4 +244,4 @@ namespace chess::editor {
         const vk::ImageMemoryBarrier2 presented{vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, vk::PipelineStageFlagBits2::eNone, {}, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR, vk::QueueFamilyIgnored, vk::QueueFamilyIgnored, images[image_index], {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
         command.pipelineBarrier2(vk::DependencyInfo{{}, {}, {}, {}, {}, 1, &presented});
     }
-} // namespace chess::editor
+} // namespace tools::editor

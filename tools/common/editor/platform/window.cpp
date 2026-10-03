@@ -4,20 +4,20 @@ module;
 #include <GLFW/glfw3native.h>
 #include <dwmapi.h>
 #include <windowsx.h>
-module chess.editor.platform.window;
+module tools.editor.platform.window;
 import std;
 
-namespace chess::editor {
-    WindowPlatform::WindowPlatform() {
+namespace tools::editor {
+    WindowPlatform::WindowPlatform(const char* title, const std::array<int, 2> extent, const std::array<int, 2> size) : minimum{size} {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        owned.reset(glfwCreateWindow(780, 900, "Chess", nullptr, nullptr));
-        if (!owned) throw std::runtime_error{"Chess window creation failed"};
+        owned.reset(glfwCreateWindow(extent[0], extent[1], title, nullptr, nullptr));
+        if (!owned) throw std::runtime_error{"Window creation failed"};
         window        = owned.get();
         native_window = glfwGetWin32Window(window);
-        SetPropW(native_window, L"ChessWindow", this);
+        SetPropW(native_window, L"ToolsWindow", this);
         original_window_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(native_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WindowPlatform::window_proc)));
         SetWindowLongPtrW(native_window, GWL_STYLE, WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
         constexpr BOOL dark = TRUE;
@@ -37,7 +37,7 @@ namespace chess::editor {
 
     WindowPlatform::~WindowPlatform() {
         SetWindowLongPtrW(native_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_window_proc));
-        RemovePropW(native_window, L"ChessWindow");
+        RemovePropW(native_window, L"ToolsWindow");
     }
 
     WindowPlatform::GlfwLifetime::GlfwLifetime() {
@@ -49,8 +49,19 @@ namespace chess::editor {
     }
 
     LRESULT CALLBACK WindowPlatform::window_proc(HWND window, const UINT message, const WPARAM wparam, const LPARAM lparam) {
-        auto& platform = *static_cast<WindowPlatform*>(GetPropW(window, L"ChessWindow"));
+        auto& platform  = *static_cast<WindowPlatform*>(GetPropW(window, L"ToolsWindow"));
+        platform.redraw = true;
         switch (message) {
+        case WM_KEYDOWN:
+            if (wparam == 'W' && GetKeyState(VK_CONTROL) < 0 && GetKeyState(VK_SHIFT) >= 0 && GetKeyState(VK_MENU) >= 0 && GetKeyState(VK_LWIN) >= 0 && GetKeyState(VK_RWIN) >= 0) {
+                if (!(lparam & (1LL << 30))) SendMessageW(window, WM_CLOSE, 0, 0);
+                return 0;
+            }
+            break;
+        case WM_CLOSE:
+            platform.close_requested = true;
+            glfwPostEmptyEvent();
+            return 0;
         case WM_NCCALCSIZE:
             if (wparam != 0) return 0;
             break;
@@ -87,10 +98,10 @@ namespace chess::editor {
                 minmax.ptMaxPosition  = {area.left - monitor.rcMonitor.left, area.top - monitor.rcMonitor.top};
                 minmax.ptMaxSize      = {area.right - area.left, area.bottom - area.top};
                 const auto dpi        = GetDpiForWindow(window);
-                minmax.ptMinTrackSize = {MulDiv(520, dpi, 96), MulDiv(680, dpi, 96)};
+                minmax.ptMinTrackSize = {MulDiv(platform.minimum[0], dpi, 96), MulDiv(platform.minimum[1], dpi, 96)};
                 return 0;
             }
         }
         return CallWindowProcW(platform.original_window_proc, window, message, wparam, lparam);
     }
-} // namespace chess::editor
+} // namespace tools::editor

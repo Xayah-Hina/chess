@@ -6,15 +6,28 @@ namespace chess {
         if (decision.outcome != Outcome::ongoing) moves.clear();
     }
 
-    void Game::play(const Move move) {
+    Task<bool> Game::play_async(const Move move) {
         const auto before = position;
         const auto undo   = make_move(position, move);
         history.push_back({before, undo, decision});
-        moves    = legal_moves(position);
-        decision = adjudicate(position, history, decision, moves);
+        try {
+            auto next_moves = legal_moves(position);
+            decision        = co_await adjudicate_async(position, history, decision, next_moves);
+            moves           = std::move(next_moves);
+        } catch (...) {
+            unmake_move(position, undo);
+            history.pop_back();
+            throw;
+        }
         if (decision.outcome != Outcome::ongoing) moves.clear();
+        co_return true;
     }
 
+    void Game::play(const Move move) {
+        auto task = play_async(move);
+        while (!task.resume()) {
+        }
+    }
     void Game::unplay() {
         const auto step = history.back();
         unmake_move(position, step.undo);

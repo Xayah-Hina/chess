@@ -1,9 +1,9 @@
-export module chess.editor.graphics.resources;
-import chess.editor.graphics.device;
+export module tools.editor.graphics.resources;
+import tools.editor.graphics.device;
 import std;
 import vulkan;
 
-export namespace chess::editor::graphics {
+export namespace tools::editor::graphics {
     struct Buffer final {
         vk::raii::DeviceMemory memory{nullptr};
         vk::raii::Buffer buffer{nullptr};
@@ -39,4 +39,4 @@ export namespace chess::editor::graphics {
         vk::DeviceSize resource_stride{};
     };
 
-} // namespace chess::editor::graphics
+} // namespace tools::editor::graphics

@@ -1,8 +1,8 @@
-module chess.editor.graphics.device;
+module tools.editor.graphics.device;
 import std;
 import vulkan;
 
-namespace chess::editor::graphics {
+namespace tools::editor::graphics {
     Instance::Instance(const std::span<const char* const> extensions) {
         const vk::ApplicationInfo application{"Chess", 1, "Chess", 1, vk::ApiVersion14};
         instance = vk::raii::Instance{context, vk::InstanceCreateInfo{{}, &application, 0, nullptr, static_cast<std::uint32_t>(extensions.size()), extensions.data()}};
@@ -39,4 +39,4 @@ namespace chess::editor::graphics {
         graphics = logical.getQueue(family, 0);
     }
 
-} // namespace chess::editor::graphics
+} // namespace tools::editor::graphics

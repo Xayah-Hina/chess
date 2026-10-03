@@ -1,8 +1,8 @@
-module chess.editor.graphics.resources;
+module tools.editor.graphics.resources;
 import std;
 import vulkan;
 
-namespace chess::editor::graphics {
+namespace tools::editor::graphics {
     Buffer::Buffer(Device& device, const vk::DeviceSize bytes, const vk::BufferUsageFlags extra) : size{bytes} {
         buffer                 = vk::raii::Buffer{device.logical, vk::BufferCreateInfo{{}, bytes, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst | extra, vk::SharingMode::eExclusive, 0, nullptr}};
         const auto requirement = buffer.getMemoryRequirements();
@@ -77,4 +77,4 @@ namespace chess::editor::graphics {
         device.logical.writeResourceDescriptorsEXT(vk::ResourceDescriptorInfoEXT{vk::DescriptorType::eSampledImage, vk::ResourceDescriptorDataEXT{&info}}, vk::HostAddressRangeEXT{static_cast<std::byte*>(resource_heap.mapped) + slot * resource_stride, resource_stride});
     }
 
-} // namespace chess::editor::graphics
+} // namespace tools::editor::graphics

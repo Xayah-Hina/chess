@@ -3,39 +3,16 @@ module;
 #include <imgui.h>
 module chess.editor.workspace;
 import chess.game;
-import chess.editor.platform.window;
+import tools.editor.style;
+import tools.editor.platform.window;
 import std;
 
 namespace chess::editor {
     Workspace::Workspace() {
-        ImGui::StyleColorsDark();
-        auto& style            = ImGui::GetStyle();
-        style.WindowPadding    = {20, 16};
-        style.FramePadding     = {12, 9};
-        style.ItemSpacing      = {8, 10};
-        style.WindowBorderSize = 0;
-        style.FrameBorderSize  = 0;
-        style.PopupBorderSize  = 0;
-        style.WindowRounding   = 16;
-        style.ChildRounding = style.FrameRounding = style.GrabRounding = 8;
-        style.PopupRounding                                            = 12;
-        style.ScrollbarSize                                            = 8;
-        style.ScrollbarRounding                                        = 8;
-        style.Colors[ImGuiCol_Text]                                    = {0.93F, 0.93F, 0.96F, 1};
-        style.Colors[ImGuiCol_TextDisabled]                            = {0.57F, 0.58F, 0.64F, 1};
-        style.Colors[ImGuiCol_WindowBg]                                = {0.095F, 0.10F, 0.125F, 1};
-        style.Colors[ImGuiCol_PopupBg]                                 = {0.12F, 0.125F, 0.15F, 1};
-        style.Colors[ImGuiCol_Border]                                  = {0.70F, 0.72F, 0.85F, 0.10F};
-        style.Colors[ImGuiCol_FrameBg]                                 = {0.07F, 0.075F, 0.095F, 1};
-        style.Colors[ImGuiCol_FrameBgHovered]                          = {0.14F, 0.145F, 0.18F, 1};
-        style.Colors[ImGuiCol_FrameBgActive]                           = {0.16F, 0.16F, 0.21F, 1};
-        style.Colors[ImGuiCol_Button]                                  = {0.17F, 0.175F, 0.215F, 1};
-        style.Colors[ImGuiCol_ButtonHovered]                           = {0.23F, 0.23F, 0.29F, 1};
-        style.Colors[ImGuiCol_ButtonActive]                            = {0.30F, 0.29F, 0.38F, 1};
-        style.Colors[ImGuiCol_CheckMark] = style.Colors[ImGuiCol_NavCursor] = {0.63F, 0.62F, 1, 1};
+        tools::editor::apply_style();
     }
 
-    void Workspace::draw(WindowPlatform& window) {
+    void Workspace::draw(tools::editor::WindowPlatform& window) {
         const auto& viewport = *ImGui::GetMainViewport();
         const float scale    = ImGui::GetStyle().FontScaleDpi;
         ImGui::SetNextWindowPos(viewport.Pos);
@@ -43,7 +20,7 @@ namespace chess::editor {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0, 0});
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
         ImGui::Begin("##Chess", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse);
-        draw_window_controls(window, scale);
+        tools::editor::draw_window_controls(window, "中国象棋", scale);
 
         const float cell = std::min((viewport.Size.x - 48 * scale) / 10, (viewport.Size.y - 224 * scale) / 11);
         const float top  = 84 * scale + (viewport.Size.y - 224 * scale - 11 * cell) / 2;
@@ -65,7 +42,7 @@ namespace chess::editor {
             const auto glyph   = ImGui::CalcTextSize(avatar);
             draw->AddText({minimum.x + 12 * scale - glyph.x / 2, y - glyph.y / 2}, ink, avatar);
             draw->AddText({minimum.x + 34 * scale, y - ImGui::GetFontSize() / 2}, active || winner ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(ImGuiCol_TextDisabled), side == Color::red ? "红方" : "黑方");
-            const char* state = ongoing ? active ? "行棋" : "等待" : game.decision.outcome == Outcome::draw ? "和棋" : winner ? "胜方" : "负方";
+            const char* state = ongoing ? active ? "行棋中" : "等待" : game.decision.outcome == Outcome::draw ? "和棋" : winner ? "获胜" : "落败";
             const auto text   = ImGui::CalcTextSize(state);
             const float left  = maximum.x - text.x - 18 * scale;
             if (active || winner) draw->AddRectFilled({left, y - 13 * scale}, {maximum.x, y + 13 * scale}, IM_COL32(161, 158, 255, 24), 13 * scale);
@@ -81,64 +58,26 @@ namespace chess::editor {
                 ImGui::TextColored({0.93F, 0.57F, 0.56F, 1}, "将军");
             }
         } else {
-            constexpr std::array results{"", "红方胜", "黑方胜", "和棋"};
+            constexpr std::array results{"", "红方获胜", "黑方获胜", "和棋"};
             ImGui::TextColored({0.73F, 0.70F, 1, 1}, "%s", results[int(game.decision.outcome)]);
         }
         ImGui::SetCursorScreenPos({minimum.x, footer + 27 * scale});
         ImGui::PushFont(nullptr, 13.5F);
         ImGui::PushTextWrapPos(maximum.x - viewport.Pos.x - 136 * scale);
         if (!ongoing) {
-            const auto reason = describe(game.decision.reason);
-            ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%.*s", int(reason.size()), reason.data());
+            constexpr std::array reasons{"", "将死", "困毙", "长将", "长杀 / 长捉", "重复局面", "自然限着", "双方均无法获胜"};
+            ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", reasons[int(game.decision.reason)]);
         } else if (game.decision.change) ImGui::TextColored({0.84F, 0.72F, 0.49F, 1}, "%s", game.decision.change == 1 ? "红方须变着" : game.decision.change == 2 ? "黑方须变着" : "双方须变着");
-        else ImGui::TextDisabled("%s", selected ? "请选择落点" : "选择棋子，点击落点");
+        else ImGui::TextDisabled("%s", selected ? "请选择落子位置" : "选择棋子，再选择落子位置");
         ImGui::PopTextWrapPos();
         ImGui::PopFont();
         ImGui::SetCursorScreenPos({maximum.x - 116 * scale, footer + 2 * scale});
-        if (ImGui::Button("开始新局", {116 * scale, 42 * scale})) {
+        if (ImGui::Button("重新开局", {116 * scale, 42 * scale})) {
             game = Game{};
             selected.reset();
         }
         ImGui::End();
         ImGui::PopStyleVar(2);
-    }
-
-    void Workspace::draw_window_controls(WindowPlatform& window, const float scale) {
-        const auto& viewport = *ImGui::GetMainViewport();
-        auto* draw           = ImGui::GetWindowDrawList();
-        draw->AddText({viewport.Pos.x + 24 * scale, viewport.Pos.y + 18 * scale}, ImGui::GetColorU32(ImGuiCol_TextDisabled), "象棋");
-        const float left   = viewport.Pos.x + viewport.Size.x - 134 * scale;
-        window.drag_region = {0, 0, left - viewport.Pos.x - 8 * scale, 48 * scale};
-        constexpr std::array ids{"##Minimize", "##Maximize", "##Close"};
-        constexpr std::array labels{"最小化", "最大化", "关闭"};
-        const bool maximized = IsZoomed(window.native_window);
-        for (int index = 0; index < 3; ++index) {
-            const ImVec2 origin{left + index * 42 * scale, viewport.Pos.y + 8 * scale};
-            ImGui::SetCursorScreenPos(origin);
-            const bool clicked = ImGui::InvisibleButton(ids[index], {38 * scale, 32 * scale}, ImGuiButtonFlags_EnableNav);
-            const bool hovered = ImGui::IsItemHovered() || ImGui::IsItemFocused();
-            auto& storage      = *ImGui::GetStateStorage();
-            const auto key     = ImGui::GetItemID();
-            const float alpha  = std::lerp(storage.GetFloat(key), hovered ? 1.0F : 0.0F, std::min(1.0F, ImGui::GetIO().DeltaTime / 0.12F));
-            storage.SetFloat(key, alpha);
-            draw->AddRectFilled(origin, {origin.x + 38 * scale, origin.y + 32 * scale}, ImGui::GetColorU32(index == 2 ? ImVec4{0.84F, 0.30F, 0.34F, alpha * 0.70F} : ImVec4{0.30F, 0.29F, 0.38F, alpha * 0.55F}), 8 * scale);
-            const ImU32 ink = ImGui::GetColorU32(ImVec4{0.57F + 0.36F * alpha, 0.58F + 0.35F * alpha, 0.64F + 0.32F * alpha, 1});
-            const ImVec2 center{origin.x + 19 * scale, origin.y + 16 * scale};
-            const float radius = 4.5F * scale;
-            if (index == 0) draw->AddLine({center.x - radius, center.y + 2 * scale}, {center.x + radius, center.y + 2 * scale}, ink, 1.5F * scale);
-            else if (index == 1) {
-                if (maximized) {
-                    draw->AddLine({center.x - radius + 2 * scale, center.y - radius}, {center.x + radius, center.y - radius}, ink, 1.3F * scale);
-                    draw->AddLine({center.x + radius, center.y - radius}, {center.x + radius, center.y + radius - 2 * scale}, ink, 1.3F * scale);
-                }
-                draw->AddRect({center.x - radius, center.y - radius + (maximized ? 2 * scale : 0)}, {center.x + radius - (maximized ? 2 * scale : 0), center.y + radius}, ink, 0, 0, 1.3F * scale);
-            } else {
-                draw->AddLine({center.x - radius, center.y - radius}, {center.x + radius, center.y + radius}, ink, 1.5F * scale);
-                draw->AddLine({center.x + radius, center.y - radius}, {center.x - radius, center.y + radius}, ink, 1.5F * scale);
-            }
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", index == 1 && maximized ? "还原" : labels[index]);
-            if (clicked) SendMessageW(window.native_window, WM_SYSCOMMAND, index == 0 ? SC_MINIMIZE : index == 1 ? maximized ? SC_RESTORE : SC_MAXIMIZE : SC_CLOSE, 0);
-        }
     }
 
     void Workspace::draw_board(const ImVec2 origin, const float cell, const float scale) {

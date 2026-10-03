@@ -4,10 +4,8 @@ cmake-build-*
 build*
 /install/
 /assets/weights/
-/assets/prompts/
-/assets/loras/
-/assets/edit/
-/assets/qwen/
+/assets/ai/
+/assets/benchmark/
 AGENTS.md
 TODO.md
 /exports/

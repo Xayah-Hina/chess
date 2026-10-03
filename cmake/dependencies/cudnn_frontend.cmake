@@ -1,0 +1,6 @@
+include_guard(GLOBAL)
+FetchContent_MakeAvailable(cudnn_frontend)
+add_library(chess-cudnn-frontend INTERFACE)
+add_library(chess::cudnn-frontend ALIAS chess-cudnn-frontend)
+target_include_directories(chess-cudnn-frontend SYSTEM INTERFACE "${cudnn_frontend_SOURCE_DIR}/include")
+target_link_libraries(chess-cudnn-frontend INTERFACE cuDNN::cuDNN nlohmann_json::nlohmann_json)

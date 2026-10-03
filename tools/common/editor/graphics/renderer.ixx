@@ -1,11 +1,11 @@
-export module chess.editor.graphics.renderer;
-import chess.editor.platform.window;
-import chess.editor.graphics.device;
-import chess.editor.graphics.resources;
+export module tools.editor.graphics.renderer;
+import tools.editor.platform.window;
+import tools.editor.graphics.device;
+import tools.editor.graphics.resources;
 import std;
 import vulkan;
 
-export namespace chess::editor {
+export namespace tools::editor {
     struct Renderer final {
         WindowPlatform& window;
         graphics::Instance instance;
@@ -50,4 +50,4 @@ export namespace chess::editor {
         void update_fonts();
         void draw();
     };
-} // namespace chess::editor
+} // namespace tools::editor
