@@ -58,19 +58,10 @@ endif()
 # ============================================================================
 # Core
 # ============================================================================
-add_library(chess_core STATIC)
-target_sources(chess_core PRIVATE
-        chess/core/position.cpp
-        chess/core/rules.cpp
-        chess/core/adjudication.cpp
-        chess/core/game.cpp
-        chess/core/headless.cpp
-        PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        chess/core/position.ixx
-        chess/core/rules.ixx
-        chess/core/adjudication.ixx
-        chess/core/game.ixx
-        chess/core/headless.ixx)
+include(cmake/Core.cmake)
+include(cmake/Inference.cmake)
+target_sources(chess_core PRIVATE chess/core/headless.cpp
+        PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES chess/core/headless.ixx)
 
 # ============================================================================
 # Source Identity
@@ -98,7 +89,6 @@ string(SHA256 CHESS_SOURCE_HASH "${CHESS_SOURCE_IDENTITY}")
 # ============================================================================
 add_library(chess_ai STATIC)
 target_sources(chess_ai PRIVATE
-        chess/ai/encoding.cpp
         chess/ai/device.cpp
         chess/ai/network.cpp
         chess/ai/tensors.h
@@ -111,8 +101,6 @@ target_sources(chess_ai PRIVATE
         chess/ai/training.cpp
         chess/ai/headless.cpp
         PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        chess/ai/encoding.ixx
-        chess/ai/config.ixx
         chess/ai/device.ixx
         chess/ai/network.ixx
         chess/ai/search.ixx
@@ -121,7 +109,7 @@ target_sources(chess_ai PRIVATE
         chess/ai/checkpoint.ixx
         chess/ai/training.ixx
         chess/ai/headless.ixx)
-target_link_libraries(chess_ai PUBLIC chess_core PRIVATE chess::cudnn-frontend CUDA::cudart CUDA::cublasLt CUDA::nvrtc CUDA::cuda_driver)
+target_link_libraries(chess_ai PUBLIC chess_inference PRIVATE chess::cudnn-frontend CUDA::cudart CUDA::cublasLt CUDA::nvrtc CUDA::cuda_driver)
 if(MSVC)
     target_compile_options(chess_ai PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
 endif()
@@ -201,6 +189,10 @@ endif()
 # ============================================================================
 # Executables
 # ============================================================================
+add_executable(model-export tools/model-export/main.cpp)
+target_link_libraries(model-export PRIVATE chess_inference bcrypt)
+set_target_properties(model-export PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/tools")
+
 add_executable(chess main.cpp)
 target_link_libraries(chess PRIVATE chess_core)
 if(CHESS_BUILD_UI)

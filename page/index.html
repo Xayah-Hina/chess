@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#161917" />
+    <meta name="description" content="与自我对弈训练的象棋 AI 下一盘棋。完整 WXF 规则，所有思考在你的设备上完成。" />
+    <title>棋案 · 与 AI 对弈</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <a class="brand" href="./" aria-label="棋案首页"><span class="brand-mark">棋</span><span>棋案<small>XIANGQI</small></span></a>
+        <div class="header-note"><span class="status-dot"></span>与你的 AI 对手下一盘棋</div>
+      </header>
+      <main class="workspace">
+        <section class="game" aria-label="象棋对弈">
+          <div class="player-strip opponent-strip">
+            <div class="avatar black">将</div>
+            <div class="player-name">象棋 AI<span id="opponent-status">准备中</span></div>
+            <span class="side-tag">黑方</span>
+          </div>
+          <div class="board-frame"><svg id="board" viewBox="0 0 540 600" role="group" aria-label="象棋棋盘"></svg></div>
+          <div class="player-strip">
+            <div class="avatar red">帅</div>
+            <div class="player-name">你<span>执红先行</span></div>
+            <span class="side-tag">红方</span>
+          </div>
+        </section>
+        <aside class="sidebar">
+          <div class="eyebrow">一局，见真章</div>
+          <h1>与 AI 对弈<span>从第一步开始。</span></h1>
+          <p class="intro">这位对手通过自我对弈学习象棋。<br />选中红方棋子，点击落点即可行棋。</p>
+          <section class="status-card" aria-live="polite">
+            <div class="card-label"><span id="phase-dot" class="status-dot"></span><span id="phase">正在准备</span><span id="move-number">第 1 回合</span></div>
+            <h2 id="message">稍候，即可开局</h2>
+            <p id="detail">正在加载对弈引擎</p>
+            <progress id="progress" max="1" value="0" aria-label="模型加载与 AI 搜索进度"></progress>
+            <div class="card-bottom"><span id="progress-label">模型准备中</span><span id="thinking-time"></span></div>
+          </section>
+          <button id="restart" class="restart" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" /></svg>重新开局</button>
+          <div class="model-info"><span>对手模型</span><strong id="model-version">加载中</strong></div>
+          <div class="model-info"><span>运算位置</span><strong>你的设备</strong></div>
+          <div class="rules-note"><span>完整 WXF 规则</span><p>将死与困毙判负，长将、长捉与重复局面由引擎裁定。落子无悔。</p></div>
+          <p id="cache-note" class="cache-note">首次需要下载约 85 MB 模型，随后使用本地缓存。</p>
+        </aside>
+      </main>
+      <footer>九路纵横 · 楚河汉界<span>每一步思考，都在本机完成</span></footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

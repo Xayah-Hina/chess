@@ -1,0 +1,75 @@
+name: Deploy Xiangqi page
+
+# Deployment is deliberately manual. Local development never publishes a site.
+on:
+  workflow_dispatch:
+    inputs:
+      model_release:
+        description: Release tag containing model.json and its ONNX model
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: page/package-lock.json
+      - name: Install CMake and Ninja
+        run: python -m pip install cmake==4.4.0 ninja==1.13.2
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 --branch 6.0.11 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 6.0.11
+          "$RUNNER_TEMP/emsdk/emsdk" activate 6.0.11
+      - name: Build shared engine
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          emcmake cmake -S page -B cmake-build-release/page-engine -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build cmake-build-release/page-engine --parallel 30
+      - name: Download selected model
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODEL_RELEASE: ${{ inputs.model_release }}
+        run: |
+          mkdir -p cmake-build-release/page-model
+          gh release download "$MODEL_RELEASE" --repo "$GITHUB_REPOSITORY" --pattern model.json --dir cmake-build-release/page-model
+          MODEL_FILE=$(node -p 'JSON.parse(require("node:fs").readFileSync("cmake-build-release/page-model/model.json", "utf8")).file')
+          gh release download "$MODEL_RELEASE" --repo "$GITHUB_REPOSITORY" --pattern "$MODEL_FILE" --dir cmake-build-release/page-model
+      - name: Build page
+        working-directory: page
+        run: |
+          npm ci
+          npm run build
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: cmake-build-release/page-site
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

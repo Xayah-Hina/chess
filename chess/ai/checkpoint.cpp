@@ -1,16 +1,6 @@
 module chess.ai.checkpoint;
 import std;
 namespace chess::ai {
-    Archive::Archive(const std::filesystem::path& path, const bool read, const std::uint32_t kind) : reading{read} {
-        file.exceptions(std::ios::badbit | std::ios::failbit);
-        file.open(path, std::ios::binary | (reading ? std::ios::in : std::ios::out | std::ios::trunc));
-        std::uint64_t magic   = 0x3149414951514843;
-        std::uint32_t version = kind == 2 ? 6 : kind == 5 ? 5 : kind == 7 ? 4 : 2, type = kind;
-        pod(magic);
-        pod(version);
-        pod(type);
-        if (magic != 0x3149414951514843 || version != (kind == 2 ? 6 : kind == 5 ? 5 : kind == 7 ? 4 : 2) || type != kind) throw std::runtime_error{"Unsupported AI artifact format"};
-    }
     void serialize(Archive& archive, Sample& sample) {
         archive.pod(sample.observation);
         archive.sequence(sample.policy);
@@ -87,24 +77,9 @@ namespace chess::ai {
             replay.generated = generated;
         }
     }
-    void serialize(Archive& archive, Weights& weights) {
-        archive.sequence(weights.parameters);
-        archive.sequence(weights.running);
-        archive.pod(weights.version);
-    }
     void serialize(Archive& archive, Optimizer& optimizer) {
         archive.sequence(optimizer.first);
         archive.sequence(optimizer.second);
         archive.pod(optimizer.steps);
-    }
-    void save_weights(const std::filesystem::path& path, Weights weights) {
-        Archive archive{path, false, 1};
-        serialize(archive, weights);
-    }
-    Weights load_weights(const std::filesystem::path& path) {
-        Archive archive{path, true, 1};
-        Weights weights;
-        serialize(archive, weights);
-        return weights;
     }
 } // namespace chess::ai

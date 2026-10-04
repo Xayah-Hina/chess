@@ -9,3 +9,4 @@ build*
 AGENTS.md
 TODO.md
 /exports/
+/page/node_modules/

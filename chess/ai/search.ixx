@@ -1,21 +1,9 @@
 export module chess.ai.search;
 export import chess.ai.network;
-import chess.ai.config;
+export import chess.ai.tree;
 import std;
 
 export namespace chess::ai {
-    struct SearchConfig final {
-        int simulations{Config{}.simulations}, candidates{Config{}.candidates}, threads{Config{}.threads};
-        bool exploration{true};
-        std::chrono::steady_clock::time_point deadline{std::chrono::steady_clock::time_point::max()};
-        std::stop_token cancellation{Computation::cancellation};
-    };
-    struct SearchResult final {
-        Move move;
-        std::vector<PolicyEntry> policy;
-        float value{};
-        std::uint64_t leaves{};
-    };
     struct SearchCompleted final {
         int actor{};
         std::uint64_t version{};
@@ -28,36 +16,6 @@ export namespace chess::ai {
     };
     struct Search final {
     private:
-        struct Edge final {
-            Move move;
-            float logit{}, prior{}, gumbel{}, sum{};
-            int visits{}, child{-1};
-        };
-        struct Node final {
-            std::vector<Edge> edges;
-            float raw{};
-            bool expanded{};
-            Decision decision;
-        };
-        struct Tree final {
-            Game game;
-            SearchConfig config;
-            std::mt19937_64 random;
-            std::vector<Node> nodes{1};
-            std::vector<std::pair<int, int>> path;
-            std::vector<int> candidates;
-            std::optional<Observation> request;
-            int pending{}, simulation{}, sample_size{}, budget{};
-            std::uint64_t leaves{};
-
-            Tree(const Game& initial, SearchConfig settings, std::uint64_t seed);
-            std::vector<float> completed(const Node& node) const;
-            void play_cached(Move move, const Decision& decision);
-            void prepare();
-            void accept(const Prediction& prediction);
-            void backup(float value);
-            SearchResult finish() const;
-        };
         enum class Stage { idle, queued, working, inference, complete };
         struct Job final {
             std::optional<Tree> tree;
