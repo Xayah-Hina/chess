@@ -35,27 +35,75 @@ namespace chess {
         return screens == (piece.kind == Kind::cannon && position.board[move.to].kind != Kind::none ? 1 : 0);
     }
 
+    namespace {
+        bool checked(const Position& position, const Color color, const int king) {
+            const int x = king % 9, y = king / 9;
+            for (const auto direction : std::array{std::array{1, 0}, std::array{-1, 0}, std::array{0, 1}, std::array{0, -1}}) {
+                bool screen{};
+                for (int tx = x + direction[0], ty = y + direction[1]; tx >= 0 && tx < 9 && ty >= 0 && ty < 10; tx += direction[0], ty += direction[1]) {
+                    const auto piece = position.board[ty * 9 + tx];
+                    if (piece.kind == Kind::none) continue;
+                    if (piece.color != color && (screen ? piece.kind == Kind::cannon : piece.kind == Kind::rook || piece.kind == Kind::general && attacks(position, {ty * 9 + tx, king}))) return true;
+                    if (screen) break;
+                    screen = true;
+                }
+            }
+            for (const auto offset : std::array{std::array{1, 2}, std::array{2, 1}, std::array{1, 1}, std::array{2, 2}, std::array{1, 0}, std::array{0, 1}})
+                for (const int sx : {-1, 1})
+                    for (const int sy : {-1, 1}) {
+                        const int tx = x + sx * offset[0], ty = y + sy * offset[1];
+                        if (tx < 0 || tx >= 9 || ty < 0 || ty >= 10) continue;
+                        const auto piece = position.board[ty * 9 + tx];
+                        if (piece.kind != Kind::none && piece.color != color && attacks(position, {ty * 9 + tx, king})) return true;
+                    }
+            return false;
+        }
+    } // namespace
+
     bool in_check(const Position& position, const Color color) {
         int king{};
         for (int square = 0; square < 90; ++square)
             if (position.board[square].kind == Kind::general && position.board[square].color == color) king = square;
-        for (int square = 0; square < 90; ++square)
-            if (position.board[square].kind != Kind::none && position.board[square].color != color && attacks(position, {square, king})) return true;
-        return false;
+        return checked(position, color, king);
     }
 
     std::vector<Move> legal_moves(const Position& position) {
         std::vector<Move> moves;
         moves.reserve(64);
         Position next = position;
+        int king{};
+        for (int square = 0; square < 90; ++square)
+            if (position.board[square].kind == Kind::general && position.board[square].color == position.turn) king = square;
         for (int from = 0; from < 90; ++from) {
-            if (position.board[from].kind == Kind::none || position.board[from].color != position.turn) continue;
-            for (int to = 0; to < 90; ++to) {
+            const auto piece = position.board[from];
+            if (piece.kind == Kind::none || piece.color != position.turn) continue;
+            const int x = from % 9, y = from / 9;
+            std::array<int, 36> destinations;
+            int count{};
+            if (piece.kind == Kind::rook || piece.kind == Kind::cannon) {
+                for (const auto direction : std::array{std::array{1, 0}, std::array{-1, 0}, std::array{0, 1}, std::array{0, -1}}) {
+                    bool screen{};
+                    for (int tx = x + direction[0], ty = y + direction[1]; tx >= 0 && tx < 9 && ty >= 0 && ty < 10; tx += direction[0], ty += direction[1]) {
+                        const int to        = ty * 9 + tx;
+                        const bool occupied = position.board[to].kind != Kind::none;
+                        if (piece.kind == Kind::rook || !occupied && !screen || occupied && screen) destinations[count++] = to;
+                        if (!occupied) continue;
+                        if (piece.kind == Kind::rook || screen) break;
+                        screen = true;
+                    }
+                }
+            } else {
+                for (const auto offset : std::array{std::array{1, 0}, std::array{-1, 0}, std::array{0, 1}, std::array{0, -1}, std::array{1, 1}, std::array{-1, 1}, std::array{1, -1}, std::array{-1, -1}, std::array{2, 2}, std::array{-2, 2}, std::array{2, -2}, std::array{-2, -2}, std::array{1, 2}, std::array{-1, 2}, std::array{1, -2}, std::array{-1, -2}, std::array{2, 1}, std::array{-2, 1}, std::array{2, -1}, std::array{-2, -1}}) {
+                    const int tx = x + offset[0], ty = y + offset[1];
+                    if (tx >= 0 && tx < 9 && ty >= 0 && ty < 10 && attacks(position, {from, ty * 9 + tx})) destinations[count++] = ty * 9 + tx;
+                }
+            }
+            std::ranges::sort(std::span{destinations}.first(count));
+            for (const int to : std::span{destinations}.first(count)) {
                 const auto target = position.board[to];
                 if (target.kind != Kind::none && (target.color == position.turn || target.kind == Kind::general)) continue;
-                if (!attacks(position, {from, to})) continue;
                 const auto undo = make_move(next, {from, to});
-                if (!in_check(next, position.turn)) moves.push_back({from, to});
+                if (!checked(next, position.turn, piece.kind == Kind::general ? to : king)) moves.push_back({from, to});
                 unmake_move(next, undo);
             }
         }

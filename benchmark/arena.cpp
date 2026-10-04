@@ -32,7 +32,7 @@ namespace chess::benchmark {
             ai::check(cudaGetDeviceProperties(&gpu, 0));
             int driver{};
             ai::check(cudaDriverGetVersion(&driver));
-            return {{"seed", config.training.seed}, {"cpu_threads", config.training.threads}, {"simulations", config.training.simulations}, {"root_candidates", config.training.candidates}, {"network", "ResNet-128x6/input128/policy4500/valueWDL"}, {"exploration", false}, {"rules", "CCA-2020/core"}, {"precision", "BF16/FP32; FP32 convolution weight gradients"}, {"engine_rules", "Pikafish internal judging; final result adjudicated by core"}, {"engine_threads", 1}, {"engine_hash_mb", 16}, {"ponder", false}, {"material_values", {0, 0, 2, 2, 4, 9, 4, 1}}, {"gpu", gpu.name}, {"cuda_driver", driver}, {"cuda", CUDART_VERSION}, {"cudnn", cudnnGetVersion()}, {"source_revision", CHESS_SOURCE_REVISION}, {"source_sha256", CHESS_SOURCE_HASH}};
+            return {{"seed", config.training.seed}, {"cpu_threads", config.training.threads}, {"simulations", config.training.simulations}, {"root_candidates", config.training.candidates}, {"network", "MiniZero-ResNet-128x6/input128/policyFC4500/valueWDL"}, {"exploration", false}, {"rules", "WXF-2018/core"}, {"search_reference", "MiniZero/394b2e483d00cb658d5a24ccca297f864c3280c7"}, {"precision", "BF16/FP32; FP32 convolution weight gradients"}, {"engine_rules", "AsianRule; final result adjudicated by WXF core"}, {"engine_threads", 1}, {"engine_hash_mb", 16}, {"ponder", false}, {"material_values", {0, 0, 2, 2, 4, 9, 4, 1}}, {"gpu", gpu.name}, {"cuda_driver", driver}, {"cuda", CUDART_VERSION}, {"cudnn", cudnnGetVersion()}, {"source_revision", CHESS_SOURCE_REVISION}, {"source_sha256", CHESS_SOURCE_HASH}};
         }
     } // namespace
     Statistics statistics(const ArenaJob& job) {
@@ -349,29 +349,7 @@ namespace chess::benchmark {
             for (const auto index : active) {
                 auto& match = job.matches[index];
                 if (match.pending) {
-                    auto operation         = match.game.play_async(match.pending_move);
-                    const auto prior_slice = TaskContext::until;
-                    const auto prior_nodes = TaskContext::rule_nodes;
-                    const auto rule_start  = std::chrono::steady_clock::now();
-                    auto next_progress     = rule_start;
-                    try {
-                        for (;;) {
-                            TaskContext::until = std::chrono::steady_clock::now() + std::chrono::milliseconds{2};
-                            if (operation.resume()) break;
-                            if (progress && std::chrono::steady_clock::now() >= next_progress) {
-                                ai::SearchActivity activity;
-                                activity.adjudicating    = 1;
-                                activity.rule_nodes      = TaskContext::rule_nodes - prior_nodes;
-                                activity.longest_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - rule_start).count();
-                                progress("Move adjudication", activity);
-                                next_progress = std::chrono::steady_clock::now() + std::chrono::seconds{1};
-                            }
-                        }
-                    } catch (...) {
-                        TaskContext::until = prior_slice;
-                        throw;
-                    }
-                    TaskContext::until = prior_slice;
+                    match.game.play(match.pending_move);
                     match.pending      = false;
                 }
                 match.complete = match.game.decision.outcome != Outcome::ongoing;

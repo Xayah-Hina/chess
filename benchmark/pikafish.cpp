@@ -30,6 +30,7 @@ namespace chess::benchmark {
         send("setoption name Hash value 16");
         send("setoption name Ponder value false");
         send("setoption name MultiPV value 1");
+        send("setoption name Rule value AsianRule");
         send("setoption name EvalFile value " + std::filesystem::absolute(model).string());
         send("ucinewgame");
         send("isready");

@@ -32,7 +32,7 @@ namespace chess::headless {
             }
             std::println("  a b c d e f g h i");
             constexpr std::array results{"ongoing", "red-win", "black-win", "draw"};
-            std::println("turn={} result={} reason={} plies={} change={}", game.position.turn == Color::red ? "red" : "black", results[int(game.decision.outcome)], describe(game.decision.reason), game.history.size(), game.decision.change);
+            std::println("turn={} result={} reason={} plies={}", game.position.turn == Color::red ? "red" : "black", results[int(game.decision.outcome)], describe(game.decision.reason), game.history.size());
             std::cout.flush();
         };
         if (!arguments.empty()) {

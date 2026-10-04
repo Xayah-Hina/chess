@@ -44,15 +44,14 @@ namespace chess::ai {
         std::array<int, 2> turns{}, counts{}, checks{};
         for (std::size_t i = capture; i < game.history.size(); ++i) {
             const auto& after = i + 1 == game.history.size() ? game.position : game.history[i + 1].before;
-            const int side    = int(game.history[i].before.turn);
+            const int side = int(game.history[i].before.turn);
             ++turns[side];
             if (!in_check(after, after.turn) || checks[side]++ < 10) ++counts[side];
         }
+        int repetitions{};
+        for (const auto& step : game.history) repetitions += same_position(step.before, game.position);
         const int us = int(turn), them = 1 - us;
-        std::ranges::copy(std::array{turn == Color::red ? 1.0F : 0.0F, float(game.history.size()) / 256, float(game.history.size() - capture) / 120, float(counts[us]) / 60, float(counts[them]) / 60, float(turns[us]) / 60, float(turns[them]) / 60, float(checks[us]) / 10, float(checks[them]) / 10, float(game.decision.period) / 18, float((game.decision.change >> us) & 1), float((game.decision.change >> them) & 1), float(game.decision.pending_draw), float(game.decision.require_idle), game.decision.change || game.decision.pending_draw ? float(game.history.size() - game.decision.started) / 4 : 0.0F}, observation.rules);
-        if (game.position.just_crossed)
-            for (int square = 0; square < 90; ++square)
-                if (game.position.board[square].id == game.position.just_crossed) observation.crossed = std::uint8_t(turn == Color::red ? square : 89 - square);
+        std::ranges::copy(std::array{turn == Color::red ? 1.0F : 0.0F, float(game.history.size()) / 256, float(counts[us]) / 50, float(counts[them]) / 50, float(turns[us]) / 50, float(turns[them]) / 50, float(checks[us]) / 10, float(checks[them]) / 10, float(repetitions) / 3, float(in_check(game.position, turn))}, observation.rules);
         return observation;
     }
     int action(Move move, const Color turn) {

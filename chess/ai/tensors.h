@@ -3,11 +3,11 @@
 #include <cstdint>
 
 namespace chess::ai {
-    inline constexpr int input_channels = 128, action_count = 4500;
+    // 112 history planes and 10 rule planes, padded for Tensor Core convolutions.
+    inline constexpr int input_channels = 128, rule_channels = 10, action_count = 4500;
     struct Observation final {
         std::uint8_t boards[720]{};
-        float rules[15]{};
-        std::uint8_t crossed{255};
+        float rules[rule_channels]{};
     };
     struct PolicyEntry final {
         std::uint16_t action{};

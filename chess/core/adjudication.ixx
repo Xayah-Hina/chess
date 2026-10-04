@@ -1,6 +1,5 @@
 export module chess.adjudication;
 export import chess.rules;
-export import chess.task;
 import std;
 
 export namespace chess {
@@ -14,14 +13,11 @@ export namespace chess {
         ~Computation();
     };
     enum class Outcome : std::uint8_t { ongoing, red_win, black_win, draw };
-    enum class Reason : std::uint8_t { none, checkmate, stalemate, perpetual_check, perpetual_attack, repetition, move_limit, dead_position };
+    enum class Reason : std::uint8_t { none, checkmate, stalemate, perpetual_check, perpetual_chase, repetition, move_limit, dead_position };
 
     struct Decision final {
         Outcome outcome{};
         Reason reason{};
-        std::uint8_t change{};
-        std::size_t started{}, period{};
-        bool require_idle{}, pending_draw{};
         bool operator==(const Decision&) const = default;
     };
 
@@ -31,21 +27,6 @@ export namespace chess {
         Decision decision;
     };
 
-    struct Chase final {
-        std::uint8_t target{};
-        Kind kind{};
-        std::uint32_t attackers{};
-        bool unprotected{};
-    };
-
-    struct Nature final {
-        bool check{}, kill{};
-        std::vector<Chase> chases;
-    };
-
-    Task<Nature> classify_async(const Position& before, Move move, std::uint32_t involved = 0);
-    Nature classify(const Position& before, Move move, std::uint32_t involved = 0);
-    Task<Decision> adjudicate_async(const Position& position, std::span<const Step> history, Decision previous, std::span<const Move> moves);
-    Decision adjudicate(const Position& position, std::span<const Step> history, Decision previous, std::span<const Move> moves);
+    Decision adjudicate(const Position& position, std::span<const Step> history, std::span<const Move> moves);
     std::string_view describe(Reason reason);
 } // namespace chess

@@ -67,7 +67,6 @@ target_sources(chess_core PRIVATE
         chess/core/headless.cpp
         PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES
         chess/core/position.ixx
-        chess/core/task.ixx
         chess/core/rules.ixx
         chess/core/adjudication.ixx
         chess/core/game.ixx

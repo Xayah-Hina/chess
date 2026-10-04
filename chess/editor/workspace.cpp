@@ -65,9 +65,9 @@ namespace chess::editor {
         ImGui::PushFont(nullptr, 13.5F);
         ImGui::PushTextWrapPos(maximum.x - viewport.Pos.x - 136 * scale);
         if (!ongoing) {
-            constexpr std::array reasons{"", "将死", "困毙", "长将", "长杀 / 长捉", "重复局面", "自然限着", "双方均无法获胜"};
+            constexpr std::array reasons{"", "将死", "困毙", "长将", "长捉", "重复局面", "自然限着", "双方均无法获胜"};
             ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", reasons[int(game.decision.reason)]);
-        } else if (game.decision.change) ImGui::TextColored({0.84F, 0.72F, 0.49F, 1}, "%s", game.decision.change == 1 ? "红方须变着" : game.decision.change == 2 ? "黑方须变着" : "双方须变着");
+        }
         else ImGui::TextDisabled("%s", selected ? "请选择落子位置" : "选择棋子，再选择落子位置");
         ImGui::PopTextWrapPos();
         ImGui::PopFont();

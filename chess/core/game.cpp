@@ -2,17 +2,17 @@ module chess.game;
 import std;
 
 namespace chess {
-    Game::Game(Position initial) : position{std::move(initial)}, moves{legal_moves(position)}, decision{adjudicate(position, {}, {}, moves)} {
+    Game::Game(Position initial) : position{std::move(initial)}, moves{legal_moves(position)}, decision{adjudicate(position, {}, moves)} {
         if (decision.outcome != Outcome::ongoing) moves.clear();
     }
 
-    Task<bool> Game::play_async(const Move move) {
+    void Game::play(const Move move) {
         const auto before = position;
         const auto undo   = make_move(position, move);
         history.push_back({before, undo, decision});
         try {
             auto next_moves = legal_moves(position);
-            decision        = co_await adjudicate_async(position, history, decision, next_moves);
+            decision        = adjudicate(position, history, next_moves);
             moves           = std::move(next_moves);
         } catch (...) {
             unmake_move(position, undo);
@@ -20,13 +20,6 @@ namespace chess {
             throw;
         }
         if (decision.outcome != Outcome::ongoing) moves.clear();
-        co_return true;
-    }
-
-    void Game::play(const Move move) {
-        auto task = play_async(move);
-        while (!task.resume()) {
-        }
     }
     void Game::unplay() {
         const auto step = history.back();

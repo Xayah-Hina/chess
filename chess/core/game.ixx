@@ -10,7 +10,6 @@ export namespace chess {
         Decision decision;
 
         explicit Game(Position initial = initial_position());
-        Task<bool> play_async(Move move);
         void play(Move move);
         // Search branches use this; there is no player-facing undo command.
         void unplay();

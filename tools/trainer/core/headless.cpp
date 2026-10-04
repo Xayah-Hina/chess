@@ -61,7 +61,7 @@ namespace tools::trainer {
             evaluation.begin(model, comparison, initial, opponent);
             const auto log = [&] {
                 evaluation.report("running");
-                std::println("benchmark profile={} probes={}/{} positions={} seconds={:.1f} stage=\"{}\" searches={}/{} simulations={} rule_tasks={} rule_nodes={} longest_rule={:.1f}s", evaluation.deep ? "deep" : "short", evaluation.probe_index, evaluation.deep ? 3 : 2, evaluation.probe_index < 3 ? evaluation.probes[evaluation.probe_index].positions : 0, evaluation.seconds + evaluation.running_seconds, evaluation.stage, evaluation.activity.completed, evaluation.activity.total, evaluation.activity.simulations, evaluation.activity.adjudicating, evaluation.activity.rule_nodes, evaluation.activity.longest_seconds);
+                std::println("benchmark profile={} probes={}/{} positions={} seconds={:.1f} stage=\"{}\" searches={}/{} simulations={}", evaluation.deep ? "deep" : "short", evaluation.probe_index, evaluation.deep ? 3 : 2, evaluation.probe_index < 3 ? evaluation.probes[evaluation.probe_index].positions : 0, evaluation.seconds + evaluation.running_seconds, evaluation.stage, evaluation.activity.completed, evaluation.activity.total, evaluation.activity.simulations);
                 std::cout.flush();
             };
             evaluation.heartbeat = log;
@@ -98,7 +98,7 @@ namespace tools::trainer {
             } else if (action == "quit") break;
             else if (action == "status") {
                 const auto state = session.drain();
-                std::println("state={} steps={} games={} plies={} replay={} pending={} benchmark={} queued={} rule_tasks={} longest_rule={:.1f}s", phases[int(state.phase)], state.steps, state.games, state.plies, state.replay, state.pending_samples, state.active ? std::to_string(state.active->request.id) : "none", state.queue.size(), state.search.adjudicating, state.search.longest_seconds);
+                std::println("state={} steps={} games={} plies={} replay={} pending={} benchmark={} queued={}", phases[int(state.phase)], state.steps, state.games, state.plies, state.replay, state.pending_samples, state.active ? std::to_string(state.active->request.id) : "none", state.queue.size());
                 if (state.active) {
                     const auto& benchmark = *state.active;
                     std::uint64_t completed_games{}, plies{};
@@ -107,7 +107,7 @@ namespace tools::trainer {
                         plies += match.plies;
                     }
                     std::println("matches games={} plies={}", completed_games, plies);
-                    std::println("benchmark seconds={:.1f} probes={}/{} stage=\"{}\" searches={}/{} simulations={} rule_nodes={}", benchmark.seconds, benchmark.probe_index, benchmark.probe_target, benchmark.stage, benchmark.activity.completed, benchmark.activity.total, benchmark.activity.simulations, benchmark.activity.rule_nodes);
+                    std::println("benchmark seconds={:.1f} probes={}/{} stage=\"{}\" searches={}/{} simulations={}", benchmark.seconds, benchmark.probe_index, benchmark.probe_target, benchmark.stage, benchmark.activity.completed, benchmark.activity.total, benchmark.activity.simulations);
                 }
                 if (!state.error.empty()) throw std::runtime_error{state.error};
                 std::cout.flush();

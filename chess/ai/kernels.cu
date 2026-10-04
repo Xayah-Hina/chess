@@ -24,8 +24,8 @@ namespace chess::ai::kernels {
             const int square = index / input_channels, plane = index % input_channels;
             const int source = reflected ? square / 9 * 9 + 8 - square % 9 : square;
             if (plane < 112) return observation.boards[plane / 14 * 90 + source] == plane % 14 + 1 ? 1.0F : 0.0F;
-            if (plane < 127) return observation.rules[plane - 112];
-            return observation.crossed == source ? 1.0F : 0.0F;
+            if (plane < 112 + rule_channels) return observation.rules[plane - 112];
+            return 0.0F;
         }
         __global__ void expand_observations_kernel(__nv_bfloat16* output, const Observation* observations, const int count) {
             const int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -49,7 +49,7 @@ namespace chess::ai::kernels {
             }
             __syncthreads();
             for (int index = threadIdx.x; index < 90 * input_channels; index += blockDim.x) input[sample * 90 * input_channels + index] = __float2bfloat16(observation_value(record->observation, index, reflected));
-            for (int index = threadIdx.x; index < action_count; index += blockDim.x) targets[sample * action_count + index] = -1.0F;
+            for (int index = threadIdx.x; index < action_count; index += blockDim.x) targets[sample * action_count + index] = 0.0F;
             __syncthreads();
             for (std::uint32_t index = threadIdx.x; index < record->count; index += blockDim.x) {
                 const auto entry = arguments->policies[(record->offset + index) % arguments->policy_capacity];
@@ -164,8 +164,7 @@ namespace chess::ai::kernels {
             __shared__ float shared[256];
             const int sample = blockIdx.x, offset = sample * 4500;
             float maximum = -INFINITY;
-            for (int action = threadIdx.x; action < 4500; action += blockDim.x)
-                if (targets[offset + action] >= 0) maximum = fmaxf(maximum, __bfloat162float(policy[offset + action]));
+            for (int action = threadIdx.x; action < 4500; action += blockDim.x) maximum = fmaxf(maximum, __bfloat162float(policy[offset + action]));
             shared[threadIdx.x] = maximum;
             __syncthreads();
             for (int width = blockDim.x / 2; width; width /= 2) {
@@ -175,19 +174,15 @@ namespace chess::ai::kernels {
             maximum = shared[0];
             __syncthreads();
             float denominator{};
-            for (int action = threadIdx.x; action < 4500; action += blockDim.x)
-                if (targets[offset + action] >= 0) denominator += expf(__bfloat162float(policy[offset + action]) - maximum);
+            for (int action = threadIdx.x; action < 4500; action += blockDim.x) denominator += expf(__bfloat162float(policy[offset + action]) - maximum);
             denominator = sum(denominator, shared);
             __syncthreads();
             float cross_entropy{};
             for (int action = threadIdx.x; action < 4500; action += blockDim.x) {
                 const float target = targets[offset + action];
-                float derivative{};
-                if (target >= 0) {
-                    const float log_probability = __bfloat162float(policy[offset + action]) - maximum - logf(denominator);
-                    derivative                  = expf(log_probability) - target;
-                    cross_entropy -= target * log_probability;
-                }
+                const float log_probability = __bfloat162float(policy[offset + action]) - maximum - logf(denominator);
+                const float derivative = expf(log_probability) - target;
+                if (target > 0) cross_entropy += target * (logf(target) - log_probability);
                 policy_gradient[offset + action] = __float2bfloat16(derivative / batch);
             }
             cross_entropy = sum(cross_entropy, shared);

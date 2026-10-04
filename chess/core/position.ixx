@@ -21,7 +21,6 @@ export namespace chess {
         // File a is on Red's left; rank 0 is Red's home rank.
         std::array<Piece, 90> board{};
         Color turn{};
-        std::uint8_t just_crossed{};
         auto operator<=>(const Position&) const = default;
     };
 
@@ -29,7 +28,6 @@ export namespace chess {
         Move move;
         Piece captured;
         Color turn;
-        std::uint8_t just_crossed;
     };
 
     Color opposite(Color color);

@@ -25,17 +25,15 @@ namespace chess::ai {
         for (int index = 0; index < 15; ++index) {
             ConvLayer layer;
             layer.input      = 128;
-            layer.output     = index == 13 ? 50 : index == 14 ? 32 : 128;
+            layer.output     = index == 13 ? 50 : index == 14 ? 1 : 128;
             layer.kernel     = index < 13 ? 3 : 1;
-            layer.normalized = index != 13;
             layer.weight     = allocate(layer.output * layer.input * layer.kernel * layer.kernel, std::sqrt(2.0F / (layer.input * layer.kernel * layer.kernel)), 0, true);
-            layer.affine     = allocate(layer.output * (layer.normalized ? 2 : 1), 0, 0, false);
-            if (layer.normalized) {
-                std::fill_n(initial.begin() + layer.affine, layer.output, 1.0F);
-                layer.running = normalization.size();
-                normalization.resize(normalization.size() + layer.output * 2, 0.0F);
-                std::fill_n(normalization.begin() + layer.running + layer.output, layer.output, 1.0F);
-            }
+            layer.bias       = allocate(layer.output, 0, 0, false);
+            layer.affine     = allocate(layer.output * 2, 0, 0, false);
+            std::fill_n(initial.begin() + layer.affine, layer.output, 1.0F);
+            layer.running = normalization.size();
+            normalization.resize(normalization.size() + layer.output * 2, 0.0F);
+            std::fill_n(normalization.begin() + layer.running + layer.output, layer.output, 1.0F);
             const auto output_bytes = std::size_t(capacity) * 90 * layer.output * 2;
             layer.raw               = Buffer{output_bytes};
             layer.values            = Buffer{output_bytes};
@@ -44,7 +42,9 @@ namespace chess::ai {
             layer.statistics = Buffer{std::size_t(layer.output) * 2 * sizeof(float)};
             layers.push_back(std::move(layer));
         }
-        hidden_weight        = allocate(128 * 2880, std::sqrt(2.0F / 2880), 0, true);
+        policy_weight        = allocate(action_count * action_count, std::sqrt(1.0F / action_count), 0, true);
+        policy_bias          = allocate(action_count, 0, 0, false);
+        hidden_weight        = allocate(128 * 90, std::sqrt(2.0F / 90), 0, true);
         hidden_bias          = allocate(128, 0, 0, false);
         value_weight         = allocate(3 * 128, std::sqrt(1.0F / 128), 0, true);
         value_bias           = allocate(3, 0, 0, false);
@@ -70,8 +70,10 @@ namespace chess::ai {
         targets              = Buffer{std::size_t(capacity) * action_count * 4};
         results              = Buffer{std::size_t(capacity)};
         metrics              = Buffer{16};
+        policy               = Buffer{std::size_t(capacity) * action_count * 2};
         hidden               = Buffer{std::size_t(capacity) * 128 * 2};
         value                = Buffer{std::size_t(capacity) * 3 * 2};
+        policy_derivative    = Buffer{policy.bytes};
         hidden_derivative    = Buffer{hidden.bytes};
         value_derivative     = Buffer{value.bytes};
         residual_derivative  = Buffer{input.bytes};
@@ -108,7 +110,7 @@ namespace chess::ai {
             check(cudaMemcpyAsync(observations.data, input_staging.data, positions.size_bytes(), cudaMemcpyHostToDevice, stream));
             kernels::expand_observations(stream, input.data, observations.data, batch);
             forward(batch, false);
-            check(cudaMemcpyAsync(policies, layers[13].values.data, std::size_t(batch) * action_count * 2, cudaMemcpyDeviceToHost, stream));
+            check(cudaMemcpyAsync(policies, policy.data, std::size_t(batch) * action_count * 2, cudaMemcpyDeviceToHost, stream));
             check(cudaMemcpyAsync(values, value.data, std::size_t(batch) * 3 * 2, cudaMemcpyDeviceToHost, stream));
             check(cudaStreamEndCapture(stream, std::out_ptr(captured)));
             InferenceGraph executable;
@@ -216,16 +218,19 @@ namespace chess::ai {
         check(cudaMemsetAsync(gradients.data, 0, gradients.bytes, stream));
         check(cudaMemsetAsync(metrics.data, 0, metrics.bytes, stream));
         forward(batch, true);
-        kernels::loss(stream, layers[13].values.data, value.data, static_cast<float*>(targets.data), static_cast<unsigned char*>(results.data), layers[13].derivative.data, value_derivative.data, static_cast<float*>(metrics.data), batch);
+        kernels::loss(stream, policy.data, value.data, static_cast<float*>(targets.data), static_cast<unsigned char*>(results.data), policy_derivative.data, value_derivative.data, static_cast<float*>(metrics.data), batch);
         auto* weight   = static_cast<__nv_bfloat16*>(reduced.data);
         auto* gradient = static_cast<float*>(gradients.data);
         device.matrix({3, 128, batch, 1, 0, 1}, value_derivative.data, hidden.data, gradient + value_weight);
         device.matrix({batch, 128, 3, 0, 0, 0}, value_derivative.data, weight + value_weight, hidden_derivative.data);
         kernels::bias_backward(stream, gradient + value_bias, value_derivative.data, batch, 3);
         kernels::activation_backward(stream, hidden_derivative.data, hidden.data, batch * 128);
-        device.matrix({128, 2880, batch, 1, 0, 1}, hidden_derivative.data, layers[14].values.data, gradient + hidden_weight);
-        device.matrix({batch, 2880, 128, 0, 0, 0}, hidden_derivative.data, weight + hidden_weight, layers[14].derivative.data);
+        device.matrix({128, 90, batch, 1, 0, 1}, hidden_derivative.data, layers[14].values.data, gradient + hidden_weight);
+        device.matrix({batch, 90, 128, 0, 0, 0}, hidden_derivative.data, weight + hidden_weight, layers[14].derivative.data);
         kernels::bias_backward(stream, gradient + hidden_bias, hidden_derivative.data, batch, 128);
+        device.matrix({action_count, action_count, batch, 1, 0, 1}, policy_derivative.data, layers[13].values.data, gradient + policy_weight);
+        device.matrix({batch, action_count, action_count, 0, 0, 0}, policy_derivative.data, weight + policy_weight, layers[13].derivative.data);
+        kernels::bias_backward(stream, gradient + policy_bias, policy_derivative.data, batch, action_count);
         backward(layers[14], layers[12].values.data, batch);
         backward(layers[13], layers[12].values.data, batch);
         kernels::add(stream, layers[13].input_derivative.data, layers[14].input_derivative.data, batch * 90 * 128);
@@ -254,15 +259,13 @@ namespace chess::ai {
             auto& layer  = layers[index];
             void* source = index == 0 ? input.data : layers[index < 13 ? index - 1 : 12].values.data;
             device.convolution(0, batch, layer.input, layer.output, layer.kernel, source, weight + layer.weight, layer.raw.data);
-            if (layer.normalized) {
-                void* skip = index > 0 && index < 13 && index % 2 == 0 ? layers[index - 2].values.data : nullptr;
-                kernels::normalization(stream, layer.values.data, layer.raw.data, master + layer.affine, normalization + layer.running, static_cast<float*>(layer.statistics.data), batch * 90, layer.output, training, skip);
-            } else {
-                check(cudaMemcpyAsync(layer.values.data, layer.raw.data, std::size_t(batch) * 90 * layer.output * 2, cudaMemcpyDeviceToDevice, stream));
-                kernels::activation(stream, layer.values.data, master + layer.affine, batch * 90, layer.output, false);
-            }
+            kernels::activation(stream, layer.raw.data, master + layer.bias, batch * 90, layer.output, false);
+            void* skip = index > 0 && index < 13 && index % 2 == 0 ? layers[index - 2].values.data : nullptr;
+            kernels::normalization(stream, layer.values.data, layer.raw.data, master + layer.affine, normalization + layer.running, static_cast<float*>(layer.statistics.data), batch * 90, layer.output, training, skip);
         }
-        device.matrix({batch, 128, 2880, 0, 1, 0}, layers[14].values.data, weight + hidden_weight, hidden.data);
+        device.matrix({batch, action_count, action_count, 0, 1, 0}, layers[13].values.data, weight + policy_weight, policy.data);
+        kernels::activation(stream, policy.data, master + policy_bias, batch, action_count, false);
+        device.matrix({batch, 128, 90, 0, 1, 0}, layers[14].values.data, weight + hidden_weight, hidden.data);
         kernels::activation(stream, hidden.data, master + hidden_bias, batch, 128, true);
         device.matrix({batch, 3, 128, 0, 1, 0}, hidden.data, weight + value_weight, value.data);
         kernels::activation(stream, value.data, master + value_bias, batch, 3, false);
@@ -270,10 +273,9 @@ namespace chess::ai {
     void Network::backward(ConvLayer& layer, void* source, const int batch) {
         const auto stream = device.stream.get();
         auto* gradient    = static_cast<float*>(gradients.data);
-        if (layer.normalized) {
-            kernels::activation_backward(stream, layer.derivative.data, layer.values.data, batch * 90 * layer.output);
-            kernels::normalization_backward(stream, layer.derivative.data, layer.raw.data, static_cast<float*>(parameters.data) + layer.affine, static_cast<float*>(layer.statistics.data), gradient + layer.affine, batch * 90, layer.output);
-        } else kernels::bias_backward(stream, gradient + layer.affine, layer.derivative.data, batch * 90, layer.output);
+        kernels::activation_backward(stream, layer.derivative.data, layer.values.data, batch * 90 * layer.output);
+        kernels::normalization_backward(stream, layer.derivative.data, layer.raw.data, static_cast<float*>(parameters.data) + layer.affine, static_cast<float*>(layer.statistics.data), gradient + layer.affine, batch * 90, layer.output);
+        kernels::bias_backward(stream, gradient + layer.bias, layer.derivative.data, batch * 90, layer.output);
         device.convolution(2, batch, layer.input, layer.output, layer.kernel, source, gradient + layer.weight, layer.derivative.data);
         if (layer.input_derivative.data) device.convolution(1, batch, layer.input, layer.output, layer.kernel, layer.input_derivative.data, static_cast<__nv_bfloat16*>(reduced.data) + layer.weight, layer.derivative.data);
     }

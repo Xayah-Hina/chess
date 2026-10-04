@@ -27,8 +27,7 @@ export namespace chess::ai {
     };
     struct ConvLayer final {
         int input{}, output{}, kernel{};
-        bool normalized{};
-        std::size_t weight{}, affine{}, running{};
+        std::size_t weight{}, bias{}, affine{}, running{};
         Buffer raw, values, derivative, input_derivative, statistics;
     };
     struct Network final {
@@ -52,9 +51,9 @@ export namespace chess::ai {
             std::unique_ptr<std::remove_pointer_t<cudaGraphExec_t>, decltype(&cudaGraphExecDestroy)> graph{nullptr, cudaGraphExecDestroy};
         };
         int capacity;
-        std::size_t hidden_weight{}, hidden_bias{}, value_weight{}, value_bias{};
+        std::size_t policy_weight{}, policy_bias{}, hidden_weight{}, hidden_bias{}, value_weight{}, value_bias{};
         Buffer parameters, reduced, gradients, first, second, decay, running;
-        Buffer observations, input, targets, results, metrics, arguments, hidden, value, hidden_derivative, value_derivative, residual_derivative;
+        Buffer observations, input, targets, results, metrics, arguments, policy, hidden, value, policy_derivative, hidden_derivative, value_derivative, residual_derivative;
         HostBuffer input_staging, output_staging, argument_staging, metric_staging;
         Buffer inference_parameters, inference_reduced, inference_running;
         std::shared_ptr<const DeviceWeights> resident;

@@ -23,9 +23,7 @@ export namespace chess::ai {
         Game game;
     };
     struct SearchActivity final {
-        std::size_t adjudicating{};
-        double longest_seconds{};
-        std::uint64_t rule_nodes{}, simulations{};
+        std::uint64_t simulations{};
         std::size_t completed{}, total{};
     };
     struct Search final {
@@ -38,7 +36,8 @@ export namespace chess::ai {
         struct Node final {
             std::vector<Edge> edges;
             float raw{};
-            bool expanded{}, terminal{};
+            bool expanded{};
+            Decision decision;
         };
         struct Tree final {
             Game game;
@@ -46,14 +45,15 @@ export namespace chess::ai {
             std::mt19937_64 random;
             std::vector<Node> nodes{1};
             std::vector<std::pair<int, int>> path;
-            std::vector<int> schedule;
+            std::vector<int> candidates;
             std::optional<Observation> request;
-            int pending{}, simulation{};
+            int pending{}, simulation{}, sample_size{}, budget{};
             std::uint64_t leaves{};
 
             Tree(const Game& initial, SearchConfig settings, std::uint64_t seed);
             std::vector<float> completed(const Node& node) const;
-            Task<bool> prepare();
+            void play_cached(Move move, const Decision& decision);
+            void prepare();
             void accept(const Prediction& prediction);
             void backup(float value);
             SearchResult finish() const;
@@ -61,13 +61,10 @@ export namespace chess::ai {
         enum class Stage { idle, queued, working, inference, complete };
         struct Job final {
             std::optional<Tree> tree;
-            std::optional<Task<bool>> operation;
             std::shared_ptr<const DeviceWeights> model;
             SearchResult result;
             Stage stage{Stage::idle};
-            bool commit{}, finishing{}, adjudicating{};
-            std::chrono::steady_clock::time_point rule_started{};
-            std::uint64_t rule_nodes{};
+            bool commit{};
             int simulations{};
         };
 
@@ -82,7 +79,7 @@ export namespace chess::ai {
     private:
         std::vector<Job> jobs;
         std::mutex mutex;
-        std::condition_variable condition;
+        std::condition_variable condition, work_condition;
         std::deque<int> pending;
         std::exception_ptr error;
         std::vector<std::jthread> workers;

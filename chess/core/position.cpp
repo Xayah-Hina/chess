@@ -22,9 +22,7 @@ namespace chess {
     }
 
     Undo make_move(Position& position, const Move move) {
-        const Undo undo{move, position.board[move.to], position.turn, position.just_crossed};
-        const auto piece          = position.board[move.from];
-        position.just_crossed     = piece.kind == Kind::soldier && (piece.color == Color::red ? move.from / 9 == 4 && move.to / 9 == 5 : move.from / 9 == 5 && move.to / 9 == 4) ? piece.id : 0;
+        const Undo undo{move, position.board[move.to], position.turn};
         position.board[move.to]   = position.board[move.from];
         position.board[move.from] = {};
         position.turn             = opposite(position.turn);
@@ -35,7 +33,6 @@ namespace chess {
         position.board[undo.move.from] = position.board[undo.move.to];
         position.board[undo.move.to]   = undo.captured;
         position.turn                  = undo.turn;
-        position.just_crossed          = undo.just_crossed;
     }
 
     bool same_position(const Position& first, const Position& second) {

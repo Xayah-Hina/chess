@@ -187,7 +187,7 @@ namespace tools::trainer {
         if (training && phase != Phase::failed && (total >= next_record || phase == Phase::paused || phase == Phase::saving || phase == Phase::closing)) {
             nlohmann::json queued = nlohmann::json::array();
             for (const auto& job : queue) queued.push_back({{"id", job.id}, {"profile", job.deep ? "deep" : "short"}});
-            const nlohmann::json output{{"state", phases[int(phase)]}, {"training", enabled}, {"version", frame.version}, {"steps", frame.steps}, {"games", frame.games}, {"plies", frame.plies}, {"replay", frame.replay}, {"generated", frame.generated}, {"presented", frame.presented}, {"pending_samples", frame.pending_samples}, {"rule_tasks", frame.search.adjudicating}, {"longest_rule_seconds", frame.search.longest_seconds}, {"training_seconds", training_seconds}, {"benchmark_seconds", frame.benchmark_seconds}, {"updated_at", std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()))}, {"metrics", frame.steps ? nlohmann::json(frame.metrics) : nlohmann::json(nullptr)}, {"queued_benchmarks", queued}, {"active_benchmark", active ? nlohmann::json(active->id) : nlohmann::json(nullptr)}, {"checkpoint", (config.run / "checkpoint.bin").string()}, {"latest_weights", latest_weights.string()}};
+            const nlohmann::json output{{"state", phases[int(phase)]}, {"training", enabled}, {"version", frame.version}, {"steps", frame.steps}, {"games", frame.games}, {"plies", frame.plies}, {"replay", frame.replay}, {"generated", frame.generated}, {"presented", frame.presented}, {"pending_samples", frame.pending_samples}, {"training_seconds", training_seconds}, {"benchmark_seconds", frame.benchmark_seconds}, {"updated_at", std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()))}, {"metrics", frame.steps ? nlohmann::json(frame.metrics) : nlohmann::json(nullptr)}, {"queued_benchmarks", queued}, {"active_benchmark", active ? nlohmann::json(active->id) : nlohmann::json(nullptr)}, {"checkpoint", (config.run / "checkpoint.bin").string()}, {"latest_weights", latest_weights.string()}};
             const auto temporary = config.run / "status.tmp";
             std::ofstream file{temporary};
             file.exceptions(std::ios::badbit | std::ios::failbit);
@@ -198,7 +198,7 @@ namespace tools::trainer {
             const bool header      = !std::filesystem::exists(destination);
             std::ofstream metrics{destination, std::ios::app};
             metrics.exceptions(std::ios::badbit | std::ios::failbit);
-            if (header) metrics << "training_seconds,steps,games,plies,replay,policy_loss,value_loss,gradient_norm,update_norm\n";
+            if (header) metrics << "training_seconds,steps,games,plies,replay,policy_kl,value_loss,gradient_norm,update_norm\n";
             metrics << std::format("{:.3f},{},{},{},{},", training_seconds, frame.steps, frame.games, frame.plies, frame.replay);
             if (frame.steps) metrics << std::format("{:.6f},{:.6f},{:.6f},{:.6f}", frame.metrics[0], frame.metrics[1], frame.metrics[2], frame.metrics[3]);
             else metrics << ",,,";

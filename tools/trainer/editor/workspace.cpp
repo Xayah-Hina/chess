@@ -158,12 +158,11 @@ namespace tools::trainer::editor {
             ImGui::EndTable();
         }
         ImGui::TextDisabled("红胜 / 和棋 / 黑胜  %llu / %llu / %llu     %.1f 着/秒     %.2f 更新/秒", state.outcomes[0], state.outcomes[1], state.outcomes[2], state.plies_per_second, state.steps_per_second);
-        if (state.search.adjudicating && state.phase != Phase::benchmark) ImGui::TextDisabled("正在判定 %zu 局  ·  最长 %.1f 秒  ·  其他对局继续运行", state.search.adjudicating, state.search.longest_seconds);
         if (!state.steps) {
             ImGui::TextDisabled("初始样本：%llu / %llu。对局结束后，样本才进入回放池。", state.generated, state.minimum_samples ? state.minimum_samples : std::uint64_t(std::ceil(config.training.batch / double(config.training.presentations))));
         }
         if (ImGui::BeginTable("##Charts", 2, ImGuiTableFlags_SizingStretchSame)) {
-            const std::array labels{"策略损失", "价值损失", "梯度范数", "参数更新幅度"};
+            const std::array labels{"策略 KL", "价值损失", "梯度范数", "参数更新幅度"};
             for (int index = 0; index < 4; ++index) {
                 ImGui::TableNextColumn();
                 std::vector<float> values;
@@ -205,7 +204,6 @@ namespace tools::trainer::editor {
             else std::unreachable();
             if (result.activity.total) ImGui::TextDisabled("%s  ·  当前批次 %zu / %zu 完成  ·  %llu 次搜索", stage.c_str(), result.activity.completed, result.activity.total, result.activity.simulations);
             else ImGui::TextDisabled("%s", stage.c_str());
-            if (result.activity.adjudicating) ImGui::TextDisabled("规则证明：%zu 项进行中  ·  展开 %llu 次  ·  最长 %.1f 秒", result.activity.adjudicating, result.activity.rule_nodes, result.activity.longest_seconds);
         }
         if (result.request.deep) {
             draw_matches(result);
