@@ -1,5 +1,5 @@
 # ============================================================================
-# Project
+# Project.
 # ============================================================================
 cmake_minimum_required(VERSION 4.4)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
@@ -187,12 +187,15 @@ if(CHESS_BUILD_UI)
     add_library(chess_editor STATIC)
     target_sources(chess_editor PRIVATE
             chess/editor/editor.cpp
+            chess/editor/opponent.cpp
             chess/editor/workspace.cpp
             PUBLIC FILE_SET cxx_modules TYPE CXX_MODULES FILES
             chess/editor/editor.ixx
             PRIVATE FILE_SET editor_modules TYPE CXX_MODULES FILES
+            chess/editor/opponent.ixx
             chess/editor/workspace.ixx)
-    target_link_libraries(chess_editor PRIVATE chess_core tools_editor)
+    target_link_libraries(chess_editor PRIVATE chess_ai tools_editor ole32 shell32)
+    target_compile_definitions(chess_editor PRIVATE CHESS_ASSET_DIRECTORY="${PROJECT_SOURCE_DIR}/assets")
 endif()
 
 # ============================================================================
@@ -209,8 +212,9 @@ endif()
 add_executable(trainer-headless tools/trainer/headless_main.cpp)
 target_link_libraries(trainer-headless PRIVATE trainer_core)
 set_target_properties(trainer-headless PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/tools")
-set(CHESS_TRAINER_TARGETS trainer-headless)
+set(CHESS_AI_EXECUTABLES trainer-headless)
 if(CHESS_BUILD_UI)
+    list(APPEND CHESS_AI_EXECUTABLES chess)
     add_executable(trainer WIN32 tools/trainer/main.cpp)
     target_sources(trainer PRIVATE
             tools/trainer/editor/editor.cpp
@@ -220,9 +224,9 @@ if(CHESS_BUILD_UI)
             tools/trainer/editor/workspace.ixx)
     target_link_libraries(trainer PRIVATE trainer_core tools_editor ole32 shell32)
     set_target_properties(trainer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/tools")
-    list(APPEND CHESS_TRAINER_TARGETS trainer)
+    list(APPEND CHESS_AI_EXECUTABLES trainer)
 endif()
-foreach(target IN LISTS CHESS_TRAINER_TARGETS)
+foreach(target IN LISTS CHESS_AI_EXECUTABLES)
     add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CHESS_CUDNN_DLLS} "$<TARGET_FILE_DIR:${target}>"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CHESS_CUBLASLT_DLL}" "$<TARGET_FILE_DIR:${target}>"

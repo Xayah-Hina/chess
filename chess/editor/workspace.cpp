@@ -1,6 +1,8 @@
 module;
 #include <Windows.h>
 #include <imgui.h>
+#include <shobjidl.h>
+#include <wrl/client.h>
 module chess.editor.workspace;
 import chess.game;
 import tools.editor.style;
@@ -10,9 +12,32 @@ import std;
 namespace chess::editor {
     Workspace::Workspace() {
         tools::editor::apply_style();
+        const auto directory = std::filesystem::path{CHESS_ASSET_DIRECTORY} / "ai/runs/default";
+        for (const auto& entry : std::filesystem::directory_iterator{directory}) {
+            const auto name = entry.path().filename().string();
+            if (!entry.is_regular_file() || !name.starts_with("weights-") || !name.ends_with(".bin") || name[8] < '0' || name[8] > '9') continue;
+            if (model.empty() || entry.path().filename() > model.filename()) model = entry.path();
+        }
+        if (model.empty()) throw std::runtime_error{std::format("No trained AI model in {}", directory.string())};
+        opponent.submit(model);
     }
 
     void Workspace::draw(tools::editor::WindowPlatform& window) {
+        OpponentPhase phase;
+        std::uint64_t version{};
+        double seconds{};
+        {
+            const std::lock_guard lock{opponent.mutex};
+            if (!opponent.error.empty()) throw std::runtime_error{opponent.error};
+            if (opponent.result) {
+                game = std::move(*opponent.result);
+                opponent.result.reset();
+                selected.reset();
+            }
+            phase = opponent.phase;
+            version = opponent.version;
+            seconds = opponent.seconds;
+        }
         const auto& viewport = *ImGui::GetMainViewport();
         const float scale    = ImGui::GetStyle().FontScaleDpi;
         ImGui::SetNextWindowPos(viewport.Pos);
@@ -22,8 +47,50 @@ namespace chess::editor {
         ImGui::Begin("##Chess", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse);
         tools::editor::draw_window_controls(window, "中国象棋", scale);
 
-        const float cell = std::min((viewport.Size.x - 48 * scale) / 10, (viewport.Size.y - 224 * scale) / 11);
-        const float top  = 84 * scale + (viewport.Size.y - 224 * scale - 11 * cell) / 2;
+        ImGui::SetCursorScreenPos({viewport.Pos.x + 24 * scale, viewport.Pos.y + 50 * scale});
+        if (ImGui::Button("选择 AI 模型")) {
+            const HRESULT apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+            if (FAILED(apartment)) throw std::runtime_error{std::format("Model dialog COM: 0x{:08X}", unsigned(apartment))};
+            struct Apartment final {
+                ~Apartment() { CoUninitialize(); }
+            } lifetime;
+            Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
+            HRESULT result = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(dialog.GetAddressOf()));
+            const COMDLG_FILTERSPEC filter{L"AI weights (*.bin)", L"*.bin"};
+            if (SUCCEEDED(result)) result = dialog->SetOptions(FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST);
+            if (SUCCEEDED(result)) result = dialog->SetFileTypes(1, &filter);
+            if (SUCCEEDED(result)) result = dialog->SetTitle(L"选择训练好的 AI 模型（换模型将重新开局）");
+            if (SUCCEEDED(result)) result = dialog->Show(window.native_window);
+            if (result != HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+                if (FAILED(result)) throw std::runtime_error{std::format("Model dialog: 0x{:08X}", unsigned(result))};
+                Microsoft::WRL::ComPtr<IShellItem> file;
+                result = dialog->GetResult(file.GetAddressOf());
+                PWSTR path{};
+                if (SUCCEEDED(result)) result = file->GetDisplayName(SIGDN_FILESYSPATH, &path);
+                if (FAILED(result)) throw std::runtime_error{std::format("Selected model: 0x{:08X}", unsigned(result))};
+                model = path;
+                CoTaskMemFree(path);
+                game = Game{};
+                selected.reset();
+                opponent.submit(model);
+                phase = OpponentPhase::loading;
+                version = 0;
+                seconds = 0;
+            }
+        }
+        ImGui::SameLine(0, 14 * scale);
+        const auto filename = model.filename().u8string();
+        ImGui::TextDisabled("%s", reinterpret_cast<const char*>(filename.c_str()));
+        if (ImGui::IsItemHovered()) {
+            const auto path = model.u8string();
+            ImGui::SetTooltip("%s", reinterpret_cast<const char*>(path.c_str()));
+        }
+        ImGui::SetCursorScreenPos({viewport.Pos.x + 24 * scale, viewport.Pos.y + 84 * scale});
+        if (phase == OpponentPhase::loading) ImGui::TextDisabled("你执红，AI 执黑  ·  正在加载模型");
+        else ImGui::TextDisabled("你执红，AI 执黑  ·  模型 v%llu", version);
+
+        const float cell = std::min((viewport.Size.x - 48 * scale) / 10, (viewport.Size.y - 268 * scale) / 11);
+        const float top  = 128 * scale + (viewport.Size.y - 268 * scale - 11 * cell) / 2;
         const ImVec2 origin{viewport.Pos.x + (viewport.Size.x - 8 * cell) / 2, viewport.Pos.y + top + cell};
         const ImVec2 minimum{origin.x - 0.72F * cell, origin.y - 0.72F * cell};
         const ImVec2 maximum{origin.x + 8.72F * cell, origin.y + 9.72F * cell};
@@ -41,8 +108,8 @@ namespace chess::editor {
             const char* avatar = side == Color::red ? "帅" : "将";
             const auto glyph   = ImGui::CalcTextSize(avatar);
             draw->AddText({minimum.x + 12 * scale - glyph.x / 2, y - glyph.y / 2}, ink, avatar);
-            draw->AddText({minimum.x + 34 * scale, y - ImGui::GetFontSize() / 2}, active || winner ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(ImGuiCol_TextDisabled), side == Color::red ? "红方" : "黑方");
-            const char* state = ongoing ? active ? "行棋中" : "等待" : game.decision.outcome == Outcome::draw ? "和棋" : winner ? "获胜" : "落败";
+            draw->AddText({minimum.x + 34 * scale, y - ImGui::GetFontSize() / 2}, active || winner ? ImGui::GetColorU32(ImGuiCol_Text) : ImGui::GetColorU32(ImGuiCol_TextDisabled), side == Color::red ? "红方 · 你" : "黑方 · AI");
+            const char* state = ongoing ? side == Color::black && phase == OpponentPhase::thinking ? "思考中" : active ? "行棋中" : "等待" : game.decision.outcome == Outcome::draw ? "和棋" : winner ? "获胜" : "落败";
             const auto text   = ImGui::CalcTextSize(state);
             const float left  = maximum.x - text.x - 18 * scale;
             if (active || winner) draw->AddRectFilled({left, y - 13 * scale}, {maximum.x, y + 13 * scale}, IM_COL32(161, 158, 255, 24), 13 * scale);
@@ -52,7 +119,7 @@ namespace chess::editor {
         const float footer = maximum.y + 64 * scale;
         ImGui::SetCursorScreenPos({minimum.x, footer});
         if (ongoing) {
-            ImGui::TextUnformatted(game.position.turn == Color::red ? "红方行棋" : "黑方行棋");
+            ImGui::TextUnformatted(game.position.turn == Color::red ? "轮到你行棋" : "AI 正在思考");
             if (checked) {
                 ImGui::SameLine(0, 12 * scale);
                 ImGui::TextColored({0.93F, 0.57F, 0.56F, 1}, "将军");
@@ -68,13 +135,17 @@ namespace chess::editor {
             constexpr std::array reasons{"", "将死", "困毙", "长将", "长捉", "重复局面", "自然限着", "双方均无法获胜"};
             ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", reasons[int(game.decision.reason)]);
         }
-        else ImGui::TextDisabled("%s", selected ? "请选择落子位置" : "选择棋子，再选择落子位置");
+        else if (phase == OpponentPhase::loading) ImGui::TextDisabled("等待 AI 模型加载完成");
+        else if (game.position.turn == Color::black) ImGui::TextDisabled("AI 使用训练好的模型搜索落子");
+        else if (seconds > 0) ImGui::TextDisabled("AI 上一步思考 %.2f 秒", seconds);
+        else ImGui::TextDisabled("%s", selected ? "请选择落子位置" : "选择红方棋子，再选择落子位置");
         ImGui::PopTextWrapPos();
         ImGui::PopFont();
         ImGui::SetCursorScreenPos({maximum.x - 116 * scale, footer + 2 * scale});
         if (ImGui::Button("重新开局", {116 * scale, 42 * scale})) {
             game = Game{};
             selected.reset();
+            opponent.submit(model);
         }
         ImGui::End();
         ImGui::PopStyleVar(2);
@@ -85,7 +156,12 @@ namespace chess::editor {
         ImGui::InvisibleButton("##Board", {cell * 10, cell * 11});
         int hovered = -1;
         bool interactive{};
-        if (game.decision.outcome == Outcome::ongoing && ImGui::IsItemHovered()) {
+        bool ready;
+        {
+            const std::lock_guard lock{opponent.mutex};
+            ready = opponent.phase == OpponentPhase::ready;
+        }
+        if (ready && game.position.turn == Color::red && game.decision.outcome == Outcome::ongoing && ImGui::IsItemHovered()) {
             const auto mouse = ImGui::GetMousePos();
             const int file   = int(std::round((mouse.x - origin.x) / cell));
             const int rank   = 9 - int(std::round((mouse.y - origin.y) / cell));
@@ -100,6 +176,7 @@ namespace chess::editor {
                     if (playable) {
                         game.play({*selected, hovered});
                         selected.reset();
+                        if (game.decision.outcome == Outcome::ongoing) opponent.submit(model, game);
                     } else if (selectable) selected = hovered;
                     else selected.reset();
                 }
